@@ -46,6 +46,7 @@ int main(){
     len = sizeof(client_addr);
 
     n = recvfrom(sock_fd, (char *)buffer, MAXSIZE,  0, ( struct sockaddr *) &client_addr, &len);
+    buffer[n] = '\0';
     fp = fopen(buffer, "r");
     if(fp == NULL){
         printf("File not available");
