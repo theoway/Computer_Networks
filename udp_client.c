@@ -13,7 +13,7 @@
 int main(){
     int sock_fd; 
     char buffer[MAXSIZE]; 
-    char *message = "Hello There- Client"; 
+    char message[MAXSIZE]; 
     struct sockaddr_in server_addr; 
 
     //Socket creation
@@ -31,13 +31,22 @@ int main(){
     server_addr.sin_addr.s_addr = INADDR_ANY; 
 
     int n, len; 
-      
-    sendto(sock_fd, (const char *)message, strlen(message), 0, (const struct sockaddr *) &server_addr,  sizeof(server_addr)); 
-    printf("Message has been sent\n"); 
+    scanf("%s", message);
+
+    sendto(sock_fd, message, strlen(message), 0, (const struct sockaddr *) &server_addr,  sizeof(server_addr)); 
 
     n = recvfrom(sock_fd, (char *)buffer, MAXSIZE, 0, (struct sockaddr *) &server_addr, &len); 
     buffer[n] = '\0'; 
-    printf("Response from server : %s\n", buffer); 
+    printf("File content below:\n");
+
+    int i;
+    char ch;
+    for(i = 0; i < MAXSIZE; i++){
+        ch = buffer[i];
+        if(ch == EOF)
+            return 0;
+        printf("%c", ch);
+    } 
   
     close(sock_fd); 
 

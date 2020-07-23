@@ -8,12 +8,18 @@
 #include <netinet/in.h> 
 
 #define PORT 9877
-#define MAXSIZE 100
+#define MAXSIZE 1024
+
+void clearBuffer(char* buf){
+    int i = 0;
+    for(; i < MAXSIZE; i++)
+        buf[i] = '\0';
+}
 
 int main(){
     int sock_fd;
     char buffer[MAXSIZE];
-    char *response = "Message received";
+    FILE* fp;
 
     struct sockaddr_in server_addr, client_addr;
 
@@ -39,12 +45,24 @@ int main(){
     int len, n; 
     len = sizeof(client_addr);
 
-    n = recvfrom(sock_fd, (char *)buffer, MAXSIZE,  0, ( struct sockaddr *) &client_addr, &len); 
+    n = recvfrom(sock_fd, (char *)buffer, MAXSIZE,  0, ( struct sockaddr *) &client_addr, &len);
+    fp = fopen(buffer, "r");
+    if(fp == NULL){
+        printf("File not available");
+        exit(1);
+    }
+    clearBuffer(buffer);
+    int i = 0;
+    char c = '\0';
+    for(; i < MAXSIZE; i++){
+        c = fgetc(fp);
+        buffer[i] = c;
+        if(c == EOF)
+            break;
+    }
+    fclose(fp);
 
-    buffer[n] = '\0'; 
-    printf("Message from client : %s\n", buffer); 
-
-    sendto(sock_fd, (const char *)response, strlen(response),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len); 
+    sendto(sock_fd, (const char *)buffer, strlen(buffer),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len); 
     printf("Response sent!");
     return 0;
 }
