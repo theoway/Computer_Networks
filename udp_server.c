@@ -9,6 +9,9 @@
 
 #define PORT 9877
 #define MAXSIZE 1024
+#define SERVER_SEL_REPEAT
+
+#include "selrepeat.h" //For selective repeat protcol on server side
 
 void clearBuffer(char* buf){
     int i = 0;
@@ -17,6 +20,7 @@ void clearBuffer(char* buf){
 }
 
 int main(){
+    
     int sock_fd;
     char buffer[MAXSIZE];
     FILE* fp;
@@ -44,8 +48,8 @@ int main(){
 
     int len, n; 
     len = sizeof(client_addr);
-
-    n = recvfrom(sock_fd, (char *)buffer, MAXSIZE,  0, ( struct sockaddr *) &client_addr, &len);
+    
+    n = recvfrom(sock_fd, (char *)buffer, MAXSIZE,  MSG_CONFIRM, ( struct sockaddr *) &client_addr, &len);
     buffer[n] = '\0';
     fp = fopen(buffer, "r");
     if(fp == NULL){
@@ -61,6 +65,7 @@ int main(){
         if(c == EOF)
             break;
     }
+    //Start selective repeat sending from here
     fclose(fp);
 
     sendto(sock_fd, (const char *)buffer, strlen(buffer),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len); 
