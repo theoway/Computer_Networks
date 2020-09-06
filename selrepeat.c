@@ -24,17 +24,15 @@ void sendSelRepeatServer(int window_size, FILE* fp,const int* server_sockfd ,con
     network_layer_disabled = 0;
     while(1){
         //Setting event
-        if(event == waiting){
-            //Checking if any frames have arrived
-            if(has_frame_arrived(arrived_frames))
-                event = ack_arrived;
-            else if(has_frame_timedout(timed_out))
-                event = timeout;
-            else if(!network_layer_disabled)
-                event = frame_ready;
-            else
-                event = waiting;
-        }
+        //Checking if any frames have arrived
+        if(has_frame_arrived(arrived_frames))
+            event = ack_arrived;
+        else if(has_frame_timedout(timed_out))
+            event = timeout;
+        else if(!network_layer_disabled)
+            event = frame_ready;
+        else
+            event = waiting;
 
         switch(event){
             case frame_ready:{
@@ -56,6 +54,15 @@ void sendSelRepeatServer(int window_size, FILE* fp,const int* server_sockfd ,con
                 //Iterate over timedout_frames and the send the timedout ones. 
                 break;
             }
+        }
+
+        if(file_trransfer_complete && !nbuffered){
+            //We are done here. 
+            //Exit the loop.
+            //Send a message to client that file transfer is complete
+        }
+        if(nbuffered == window_size){
+            network_layer_disabled = 1;
         }
     }
 }
