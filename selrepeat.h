@@ -9,21 +9,14 @@
 #include <netinet/in.h> 
 #include <pthread.h>
 
+#define PACKET_SIZE 500
+
 //For server side
 #ifdef SERVER_SEL_REPEAT
 
-#define PACKET_SIZE 500
 /*A mutex lock: 1 for available, 0 for unavailable*/
 struct Lock{
     int lock;
-};
-
-struct ReceiverThreadArgStruct{
-    int sock_fd;
-    struct sockaddr_in* client_address;
-    int* control;
-    int* frame_arrived;
-    Lock* ack_lock;
 };
 
 /*Keeps track of the various events that are happening*/
@@ -34,8 +27,23 @@ enum Event{
     waiting
 };
 
+struct Timer{
+    int id;
+    float time_added;
+};
+
+typedef struct Timer Timer;
 typedef enum Event Event;
 typedef struct Lock Lock;
+
+struct ReceiverThreadArgStruct{
+    int sock_fd;
+    struct sockaddr_in* client_address;
+    int* control;
+    int* frame_arrived;
+    Lock* ack_lock;
+};
+
 typedef struct ReceiverThreadArgStruct ReceiverThreadArgStruct; 
 
 /*Starts a timer for a given frame. Creates a thread*/
@@ -45,7 +53,7 @@ void stopTimer(int ack_received);
 
 /*Loads output buffer by reading from the file to be sent. Keeps track of the position,
 where the reading was paused, of the file being read*/
-void loadOutputBuffer(int* start_loading_from, char** buffer);
+void loadOutputBuffer(int window_size, int* start_loading_from, char** buffer, FILE* file_to_read_from);
 /*A thread that only keeps track of the incoming acknowledgements*/
 void* receive_incoming_ack_frames(void* arg);
 /*checks if the arrived frame fits in the transmission window*/

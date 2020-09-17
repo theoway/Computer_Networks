@@ -23,15 +23,27 @@ void* receive_incoming_ack_frames(void* arg){
             }
 
             data_for_receiving->ack_lock->lock = 0;
-            ///Set the received_frame = this
-            printf("Ack received: %d");
+            *(data_for_receiving->frame_arrived) = atoi(buffer);
+            printf("Ack received: %d", *(data_for_receiving->frame_arrived));
             data_for_receiving->ack_lock->lock = 1;
         }
     }
 }
 
-void loadOutputBuffer(int* start_loading_from, char** buffer){
-
+void loadOutputBuffer(int window_size, int* start_loading_from, char** buffer, FILE* file_to_read_from){
+    fseek(file_to_read_from, *start_loading_from, SEEK_SET);
+    char c = fgetc(file_to_read_from);
+    int i = 0, j = 0;
+    while(c != EOF){
+        if(i == window_size)
+            break;
+        buffer[i][j] = c;
+        c = fgetc(file_to_read_from);
+        j++;
+        *start_loading_from++;
+        if(j == PACKET_SIZE)
+            i++;
+    }
 }
 
 void sendSelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,const struct sockaddr_in* client_addr){
@@ -41,27 +53,38 @@ void sendSelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,con
     int network_layer_disabled = 1;
     const int max_seq_number = 2 * window_size - 1;
     int lower_edge = 0;
-    int upper_edge = lower_edge + window_size - 1;
-    int next_frame_to_send = 0;
+    int upper_edge = (lower_edge + window_size - 1) % (max_seq_number + 1);
+    int next_frame_to_send = lower_edge;
     int nbuffered = 0;
     int ack_received = 0;
 
     char* buffer[window_size];
     //Allocate each buffer the size of packet
+    int i = 0;
+    for(; i < window_size; i++){
+        buffer[i] = (char*)malloc(sizeof(char) * PACKET_SIZE);
+    }
     int read_buffer_from = 0;
-    loadOutputBuffer(&read_buffer_from, buffer);
+    loadOutputBuffer(window_size, &read_buffer_from, buffer, fp);
 
+    Timer timer_for_sent_frames[window_size];
+    /*Intialising timers*/
+    for(i = 0; i < window_size; i++){
+        timer_for_sent_frames[i].id = (lower_edge + i) % (max_seq_number + 1);
+        timer_for_sent_frames[i].time_added = -1;
+    }
     int oldest_timedout_frame = -1;
-    Lock ack_lock = {1};
+    
 
+    Lock ack_lock = {1};
     int latest_ack_arrived = -1;
 
     //Create a thread for receiving frames
     int stop_receiver_thread = 0;
     struct sockaddr_in client_address_rec_thread = *client_addr;
     ReceiverThreadArgStruct thread_args = {*server_sockfd, &client_address_rec_thread, &stop_receiver_thread, &latest_ack_arrived, &ack_lock};
-    pthread_t thread_id; 
-    pthread_create(&thread_id, NULL, receive_incoming_ack_frames, (void*)&thread_args); 
+    pthread_t receiver_thread_id; 
+    pthread_create(&receiver_thread_id, NULL, receive_incoming_ack_frames, (void*)&thread_args); 
 
     //Beginning of the protocol
     Event event = frame_ready;
@@ -106,6 +129,16 @@ void sendSelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,con
         if(ack_received == window_size){
             //Load output buffer by incrementing the start point 
             //Enable the network layer
+            network_layer_disabled = 0;
+            lower_edge = (upper_edge + 1) % (max_seq_number + 1);
+            upper_edge = (lower_edge + window_size - 1) % (max_seq_number + 1);
+            next_frame_to_send = lower_edge;
+
+            for(i = 0; i < window_size; i++){
+                timer_for_sent_frames[i].id = (lower_edge + i) % (max_seq_number + 1);
+                timer_for_sent_frames[i].time_added = -1;
+            }
+
             if(file_trransfer_complete){
                 //Protocol stops
             }
