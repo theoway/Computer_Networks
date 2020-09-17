@@ -17,6 +17,15 @@
 struct Lock{
     int lock;
 };
+
+struct ReceiverThreadArgStruct{
+    int sock_fd;
+    struct sockaddr_in* client_address;
+    int* control;
+    int* frame_arrived;
+    Lock* ack_lock;
+};
+
 /*Keeps track of the various events that are happening*/
 enum Event{
     timeout,
@@ -27,6 +36,7 @@ enum Event{
 
 typedef enum Event Event;
 typedef struct Lock Lock;
+typedef struct ReceiverThreadArgStruct ReceiverThreadArgStruct; 
 
 /*Starts a timer for a given frame. Creates a thread*/
 void startTimer(int ack_expected);
