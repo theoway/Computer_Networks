@@ -43,23 +43,45 @@ void* TimerClock(void* args){
         int i;
         for(i = 0; i < data_for_timers->window_size; i++){
             if(data_for_timers->timers[i].id == data_for_timers->timer_to_set && 
-            data_for_timers->timers[i].time_added == 0)
-                //See for lock here
+            data_for_timers->timers[i].time_added == -1){
+                while(!data_for_timers->timer_array_lock->lock){
+                    //Wait for lock to be available
+                }
+                data_for_timers->timer_array_lock->lock = 0;
                 data_for_timers->timers[i].time_added = current_time;
+                data_for_timers->timer_array_lock->lock = 1;
+            }
             
             if(data_for_timers->timers[i].id == data_for_timers->timer_to_stop &&
-            data_for_timers->timers[i].time_added != -1)
-                //See for lock here
-                data_for_timers->timers[i].time_added = 0;
+            data_for_timers->timers[i].time_added != -1){
+                while(!data_for_timers->timer_array_lock->lock){
+                    //Wait for lock to be available
+                }
+                data_for_timers->timer_array_lock->lock = 0;
+                data_for_timers->timers[i].time_added = -1;
+                data_for_timers->timer_array_lock->lock = 1;
+            }
         }
 
         //Check for timed_out timers
         for(i = 0; i < data_for_timers->window_size; i++){
-            if(!data_for_timers->timers[i].time_added){
+            if(data_for_timers->timers[i].time_added != -1){
                 int time_elapsed = (current_time - data_for_timers->timers[i].time_added) * 1000 / CLOCKS_PER_SEC;
                 if(time_elapsed > TIME_OUT_PERIOD){
                     //Set oldest frame timedout equal to this, with lock settings
-                    //Set data_for_timers->timers[i].time_added = 0, with lock settings
+                    while(!data_for_timers->timed_out_frame_lock->lock){
+                        //Wait for lock to be available
+                    }
+                    data_for_timers->timed_out_frame_lock->lock = 0;
+                    data_for_timers->timed_out_frame = data_for_timers->timers[i].id;
+                    data_for_timers->timed_out_frame_lock->lock = 1;
+
+                    while(!data_for_timers->timer_array_lock->lock){
+                        //Wait for lock to be available
+                    }
+                    data_for_timers->timer_array_lock->lock = 0;
+                    data_for_timers->timers[i].time_added = -1;
+                    data_for_timers->timer_array_lock->lock = 1;
                 }
             }
         }
@@ -179,7 +201,7 @@ void sendSelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,con
 
             for(i = 0; i < window_size; i++){
                 timers_for_sent_frames[i].id = (lower_edge + i) % (max_seq_number + 1);
-                timers_for_sent_frames[i].time_added = 0;
+                timers_for_sent_frames[i].time_added = -1;
             }
 
             if(file_trransfer_complete){
