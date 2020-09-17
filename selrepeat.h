@@ -8,8 +8,12 @@
 #include <arpa/inet.h> 
 #include <netinet/in.h> 
 #include <pthread.h>
+#include <time.h>
 
 #define PACKET_SIZE 500
+#define DIGITS_FOR_SEQ_NO 2
+#define BUFFER_SIZE (PACKET_SIZE - DIGITS_FOR_SEQ_NO)
+#define TIME_OUT_PERIOD 5 //in msec
 
 //For server side
 #ifdef SERVER_SEL_REPEAT
@@ -29,7 +33,7 @@ enum Event{
 
 struct Timer{
     int id;
-    float time_added;
+    clock_t time_added;
 };
 
 typedef struct Timer Timer;
@@ -44,8 +48,23 @@ struct ReceiverThreadArgStruct{
     Lock* ack_lock;
 };
 
-typedef struct ReceiverThreadArgStruct ReceiverThreadArgStruct; 
 
+struct TimerThreadArgStruct{
+    const int* window_size;
+    int* control;
+    int* timer_to_stop;
+    int* timer_to_set;
+    Lock* timed_out_frame_lock;
+    int* timed_out_frame;
+    Lock* timer_array_lock;
+    Timer* timers;
+};
+
+typedef struct ReceiverThreadArgStruct ReceiverThreadArgStruct; 
+typedef struct TimerThreadArgStruct TimerThreadArgStruct;
+
+/*A clock for timers*/
+void* TimerClock(void* args);
 /*Starts a timer for a given frame. Creates a thread*/
 void startTimer(int ack_expected);
 /*Stops the timer for a given frame. Stops the thread with a given id*/
