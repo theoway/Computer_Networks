@@ -2,7 +2,7 @@
 #include "selrepeat.h"
 
 int is_the_arrived_frame_valid(int lowerEdge, int ack_received, int upperEdge){
-    return ((lowerEdge <= ack_received) && (ack_received < upperEdge)) && ((upperEdge < lowerEdge) && (lowerEdge <= ack_received) && ((ack_received < upperEdge) && (upperEdge < lowerEdge)));
+    return ((lowerEdge <= ack_received) && (ack_received < upperEdge)) || ((upperEdge < lowerEdge) && (lowerEdge <= ack_received) || ((ack_received < upperEdge) && (upperEdge < lowerEdge)));
 }
 
 void* receive_incoming_ack_frames(void* arg){
@@ -50,7 +50,7 @@ void* TimerClock(void* args){
                 data_for_timers->timer_array_lock->lock = 0;
                 data_for_timers->timers[i].time_added = current_time;
                 data_for_timers->timer_array_lock->lock = 1;
-                printf("Timer set for: %d\n at %ld", data_for_timers->timers[i].id, data_for_timers->timers[i].time_added);
+                printf("Timer set for: %d at %ld\n", data_for_timers->timers[i].id, data_for_timers->timers[i].time_added);
             }
             
             if(data_for_timers->timers[i].id == *data_for_timers->timer_to_stop &&
@@ -75,7 +75,7 @@ void* TimerClock(void* args){
                         //Wait for lock to be available
                     }
                     data_for_timers->timed_out_frame_lock->lock = 0;
-                    *data_for_timers->timed_out_frame = data_for_timers->timers[i].id;
+                    *(data_for_timers->timed_out_frame) = data_for_timers->timers[i].id;
                     data_for_timers->timed_out_frame_lock->lock = 1;
 
                     while(!data_for_timers->timer_array_lock->lock){
@@ -123,7 +123,7 @@ int loadOutputBuffer(int window_size, int* start_loading_from, char** buffer, FI
     }
     fseek(file_to_read_from, *start_loading_from, SEEK_SET);
     c = fgetc(file_to_read_from);
-    printf("Next char for buffer load: %c", c);
+    
     return ack_ex;
 }
 
@@ -149,7 +149,7 @@ void sendSelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,con
     }
     int read_buffer_from = 0;
     ack_expected = loadOutputBuffer(window_size, &read_buffer_from, buffer, fp);
-    return;
+    
     Lock timer_array_lock = {1};
     Timer timers_for_sent_frames[window_size];
     /*Intialising timers*/
@@ -192,7 +192,7 @@ void sendSelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,con
             event = frame_ready;
         else
             event = waiting;
-
+        
         switch(event){
             case frame_ready:{
                 nbuffered++;
@@ -206,7 +206,7 @@ void sendSelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,con
                     packet[i] = buffer[next_frame_to_send % window_size][i-1];
                 printf("Packet to be sent: %d\n", next_frame_to_send);
 
-                //Sending the packet usign UDP sockets
+                //Sending the packet using UDP sockets
                 int len = sizeof(client_addr);
                 sendto(*server_sockfd, (const char *)packet, strlen(packet),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len); 
                 timer_to_set = next_frame_to_send;
@@ -215,14 +215,32 @@ void sendSelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,con
             }
             case ack_arrived:{
                 //Stop thte timer for the arrived ack, increment the ack_counter
+                printf("Ack arrived\n");
                 break;
             }
             case timeout:{
                 //Send the timedout frame, start the timer again 
+                printf("%d timed out\n", oldest_timedout_frame);
+                //Construct the packet
+                char packet[BUFFER_SIZE + DIGITS_FOR_SEQ_NO];
+                int ascii_0 = (int)'0';
+                packet[0] = (char)(ascii_0 + next_frame_to_send);
+                int i;
+                for(i = 1; i< BUFFER_SIZE + DIGITS_FOR_SEQ_NO; i++)
+                    packet[i] = buffer[oldest_timedout_frame % window_size][i-1];
+                printf("Timedout packet to be sent: %d\n", oldest_timedout_frame);
+                timer_to_set = oldest_timedout_frame;
+                while(!timed_out_frame_lock.lock){
+                    //Waiting for the lock to be availbale
+                }
+                timed_out_frame_lock.lock = 0;
+                oldest_timedout_frame = -1;
+                timed_out_frame_lock.lock = 1;
+                
                 break;
             }
             default:{
-                printf("Waiting\n");
+                //printf("Waiting\n");
                 break;
             }
         }

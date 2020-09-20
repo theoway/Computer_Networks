@@ -13,7 +13,7 @@
 #define PACKET_SIZE 500
 #define DIGITS_FOR_SEQ_NO 1
 #define BUFFER_SIZE (PACKET_SIZE - DIGITS_FOR_SEQ_NO)
-#define TIME_OUT_PERIOD 5 //in msec
+#define TIME_OUT_PERIOD 3000 //in msec
 
 //For server side
 #ifdef SERVER_SEL_REPEAT
