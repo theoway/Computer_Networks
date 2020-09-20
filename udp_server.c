@@ -57,20 +57,12 @@ int main(){
         exit(1);
     }
     clearBuffer(buffer);
-    int i = 0;
-    char c = '\0';
-    for(; i < MAXSIZE; i++){
-        c = fgetc(fp);
-        buffer[i] = c;
-        if(c == EOF)
-            break;
-    }
+    
     //Start selective repeat sending from here
-
-    sendSelRepeatServer(1000,fp, &sock_fd, &client_addr);
+    SelRepeatServer(1000,fp, &sock_fd, client_addr);
     fclose(fp);
 
-    sendto(sock_fd, (const char *)buffer, strlen(buffer),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len); 
+    //sendto(sock_fd, (const char *)buffer, strlen(buffer),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len); 
     printf("Response sent!");
     return 0;
 }
