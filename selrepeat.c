@@ -258,7 +258,7 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
             network_layer_disabled = 1;
         }
 
-        if(ack_received == ack_expected){
+        if(ack_received == ack_expected - 1){
             int len = sizeof(client_addr);
 
             //Load output buffer by incrementing the start point
