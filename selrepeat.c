@@ -29,7 +29,7 @@ void* receive_incoming_ack_frames(void* arg){
 
             data_for_receiving->ack_lock->lock = 0;
             *(data_for_receiving->frame_arrived) = atoi(buffer);
-            printf("Ack received: %d", *(data_for_receiving->frame_arrived));
+            printf("Ack received: %d\n", *(data_for_receiving->frame_arrived));
             data_for_receiving->ack_lock->lock = 1;
         }
     }
@@ -41,8 +41,8 @@ void* TimerClock(void* args){
         clock_t current_time = clock();
         //Set & stop given timers
         int i;
-        for(i = 0; i < data_for_timers->window_size; i++){
-            if(data_for_timers->timers[i].id == data_for_timers->timer_to_set && 
+        for(i = 0; i < *(data_for_timers->window_size); i++){
+            if(data_for_timers->timers[i].id == *data_for_timers->timer_to_set && 
             data_for_timers->timers[i].time_added == -1){
                 while(!data_for_timers->timer_array_lock->lock){
                     //Wait for lock to be available
@@ -50,13 +50,15 @@ void* TimerClock(void* args){
                 data_for_timers->timer_array_lock->lock = 0;
                 data_for_timers->timers[i].time_added = current_time;
                 data_for_timers->timer_array_lock->lock = 1;
+                printf("Timer set for: %d\n at %ld", data_for_timers->timers[i].id, data_for_timers->timers[i].time_added);
             }
             
-            if(data_for_timers->timers[i].id == data_for_timers->timer_to_stop &&
+            if(data_for_timers->timers[i].id == *data_for_timers->timer_to_stop &&
             data_for_timers->timers[i].time_added != -1){
                 while(!data_for_timers->timer_array_lock->lock){
                     //Wait for lock to be available
                 }
+                printf("Timer stopped for: %d\n", data_for_timers->timers[i].id);
                 data_for_timers->timer_array_lock->lock = 0;
                 data_for_timers->timers[i].time_added = -1;
                 data_for_timers->timer_array_lock->lock = 1;
@@ -64,7 +66,7 @@ void* TimerClock(void* args){
         }
 
         //Check for timed_out timers
-        for(i = 0; i < data_for_timers->window_size; i++){
+        for(i = 0; i < *(data_for_timers->window_size); i++){
             if(data_for_timers->timers[i].time_added != -1){
                 int time_elapsed = (current_time - data_for_timers->timers[i].time_added) * 1000 / CLOCKS_PER_SEC;
                 if(time_elapsed > TIME_OUT_PERIOD){
@@ -73,7 +75,7 @@ void* TimerClock(void* args){
                         //Wait for lock to be available
                     }
                     data_for_timers->timed_out_frame_lock->lock = 0;
-                    data_for_timers->timed_out_frame = data_for_timers->timers[i].id;
+                    *data_for_timers->timed_out_frame = data_for_timers->timers[i].id;
                     data_for_timers->timed_out_frame_lock->lock = 1;
 
                     while(!data_for_timers->timer_array_lock->lock){
@@ -88,25 +90,47 @@ void* TimerClock(void* args){
     }
 }
 
-void loadOutputBuffer(int window_size, int* start_loading_from, char** buffer, FILE* file_to_read_from){
+int loadOutputBuffer(int window_size, int* start_loading_from, char** buffer, FILE* file_to_read_from){
+    int ack_ex = 0;
     fseek(file_to_read_from, *start_loading_from, SEEK_SET);
     char c = fgetc(file_to_read_from);
     int i = 0, j = 0;
     while(c != EOF){
+        if(j == BUFFER_SIZE - 1){
+            buffer[i][j] = '\0';
+            j = 0;
+            ack_ex++;
+            i++;
+        }
         if(i == window_size)
             break;
+        else{
         buffer[i][j] = c;
         c = fgetc(file_to_read_from);
         j++;
-        *start_loading_from++;
-        if(j == BUFFER_SIZE)
-            i++;
+        *(start_loading_from) += 1;
+        }
     }
+    if(c == EOF){
+        buffer[i][j] = '\0';
+        ack_ex++;
+        i++;
+        for(;i<window_size;i++){
+            int j = 0;
+            for(; j < BUFFER_SIZE; j++)
+                buffer[i][j] = '\0';
+        }
+    }
+    fseek(file_to_read_from, *start_loading_from, SEEK_SET);
+    c = fgetc(file_to_read_from);
+    printf("Next char for buffer load: %c", c);
+    return ack_ex;
 }
 
 void sendSelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,const struct sockaddr_in* client_addr){
     //Initialisations
     int window_size = (buffer_size % PACKET_SIZE) == 0 ? (buffer_size / PACKET_SIZE) : (buffer_size / PACKET_SIZE) + 1;
+    printf("Window size: %d\n", window_size);
     int file_trransfer_complete = 0;
     int network_layer_disabled = 1;
     const int max_seq_number = 2 * window_size - 1;
@@ -115,6 +139,7 @@ void sendSelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,con
     int next_frame_to_send = lower_edge;
     int nbuffered = 0;
     int ack_received = 0;
+    int ack_expected = 0;
 
     char* buffer[window_size];
     //Allocate each buffer the size of packet
@@ -123,8 +148,8 @@ void sendSelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,con
         buffer[i] = (char*)malloc(sizeof(char) * BUFFER_SIZE);
     }
     int read_buffer_from = 0;
-    loadOutputBuffer(window_size, &read_buffer_from, buffer, fp);
-
+    ack_expected = loadOutputBuffer(window_size, &read_buffer_from, buffer, fp);
+    return;
     Lock timer_array_lock = {1};
     Timer timers_for_sent_frames[window_size];
     /*Intialising timers*/
@@ -171,10 +196,20 @@ void sendSelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,con
         switch(event){
             case frame_ready:{
                 nbuffered++;
-                //send using udp socket
-                int len = sizeof(client_addr);
-                //sendto(server_sockfd, (const char *)buffer[next_frame_to_send % window_size], strlen(buffer),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len); 
+    
+                //Constuct the packet
+                char packet[BUFFER_SIZE + DIGITS_FOR_SEQ_NO];
+                int ascii_0 = (int)'0';
+                packet[0] = (char)(ascii_0 + next_frame_to_send);
+                int i;
+                for(i = 1; i< BUFFER_SIZE + DIGITS_FOR_SEQ_NO; i++)
+                    packet[i] = buffer[next_frame_to_send % window_size][i-1];
+                printf("Packet to be sent: %d\n", next_frame_to_send);
 
+                //Sending the packet usign UDP sockets
+                int len = sizeof(client_addr);
+                sendto(*server_sockfd, (const char *)packet, strlen(packet),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len); 
+                timer_to_set = next_frame_to_send;
                 next_frame_to_send++;
                 break;
             }
@@ -186,13 +221,17 @@ void sendSelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,con
                 //Send the timedout frame, start the timer again 
                 break;
             }
+            default:{
+                printf("Waiting\n");
+                break;
+            }
         }
 
-        if(nbuffered == window_size){
+        if(nbuffered == ack_expected){
             network_layer_disabled = 1;
         }
-        if(ack_received == window_size){
-            //Load output buffer by incrementing the start point 
+        if(ack_received == ack_expected){
+            //Load output buffer by incrementing the start point
             //Enable the network layer
             network_layer_disabled = 0;
             lower_edge = (upper_edge + 1) % (max_seq_number + 1);

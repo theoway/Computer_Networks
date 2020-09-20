@@ -11,7 +11,7 @@
 #include <time.h>
 
 #define PACKET_SIZE 500
-#define DIGITS_FOR_SEQ_NO 2
+#define DIGITS_FOR_SEQ_NO 1
 #define BUFFER_SIZE (PACKET_SIZE - DIGITS_FOR_SEQ_NO)
 #define TIME_OUT_PERIOD 5 //in msec
 
@@ -72,7 +72,7 @@ void stopTimer(int ack_received);
 
 /*Loads output buffer by reading from the file to be sent. Keeps track of the position,
 where the reading was paused, of the file being read*/
-void loadOutputBuffer(int window_size, int* start_loading_from, char** buffer, FILE* file_to_read_from);
+int loadOutputBuffer(int window_size, int* start_loading_from, char** buffer, FILE* file_to_read_from);
 /*A thread that only keeps track of the incoming acknowledgements*/
 void* receive_incoming_ack_frames(void* arg);
 /*checks if the arrived frame fits in the transmission window*/
