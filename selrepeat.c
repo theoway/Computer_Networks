@@ -1,10 +1,14 @@
 #define SERVER_SEL_REPEAT
 #define CLIENT_SEL_REPEAT
+
 #include "selrepeat.h"
 
+//Returns 0 if the frame is not valid, that is, it doesn't fit inside the transmission/receiving window. Else returns 1
 int is_the_arrived_frame_valid(int lowerEdge, int ack_received, int upperEdge){
     return ((lowerEdge <= ack_received) && (ack_received <= upperEdge)) || ((upperEdge <= lowerEdge) && (lowerEdge <= ack_received) || ((ack_received <= upperEdge) && (upperEdge < lowerEdge)));
 }
+
+//#ifdef SERVER_SEL_REPEAT
 
 void* receive_incoming_ack_frames(void* arg){
     int ascii_0 = (int)'0';
@@ -32,11 +36,11 @@ void* receive_incoming_ack_frames(void* arg){
 
             data_for_receiving->ack_lock->lock = 0;
             *(data_for_receiving->frame_arrived) = (int)buffer[0] - ascii_0;
-            printf("Ack received: %d\n", *(data_for_receiving->frame_arrived));
             data_for_receiving->ack_lock->lock = 1;
         }
     }
 }
+
 
 void* TimerClock(void* args){
     TimerThreadArgStruct* data_for_timers = (TimerThreadArgStruct*)args;
@@ -69,25 +73,37 @@ void* TimerClock(void* args){
         }
 
         //Check for timed_out timers
+        int max_elapsed_time = -100;
+        int oldest_frame = -1;
+        int index = 0;
         for(i = 0; i < *(data_for_timers->window_size); i++){
             if(data_for_timers->timers[i].time_added != -1){
                 int time_elapsed = (current_time - data_for_timers->timers[i].time_added) * 1000 / CLOCKS_PER_SEC;
                 if(time_elapsed > TIME_OUT_PERIOD){
                     //Set oldest frame timedout equal to this, with lock settings
-                    while(!data_for_timers->timed_out_frame_lock->lock){
-                        //Wait for lock to be available
+                    if(time_elapsed > max_elapsed_time){
+                        max_elapsed_time = time_elapsed;
+                        oldest_frame = data_for_timers->timers[i].id;
+                        index = i;
                     }
-                    data_for_timers->timed_out_frame_lock->lock = 0;
-                    *(data_for_timers->timed_out_frame) = data_for_timers->timers[i].id;
-                    data_for_timers->timed_out_frame_lock->lock = 1;
-                    while(!data_for_timers->timer_array_lock->lock){
-                        //Wait for lock to be available
-                    }
-                    data_for_timers->timer_array_lock->lock = 0;
-                    data_for_timers->timers[i].time_added = -1;
-                    data_for_timers->timer_array_lock->lock = 1;
                 }
             }
+        }
+        if(oldest_frame != -1){
+
+            while(!data_for_timers->timed_out_frame_lock->lock){
+                //Wait for lock to be available
+            }
+            data_for_timers->timed_out_frame_lock->lock = 0;
+            *(data_for_timers->timed_out_frame) = oldest_frame;
+            data_for_timers->timed_out_frame_lock->lock = 1;
+            while(!data_for_timers->timer_array_lock->lock){
+                //Wait for lock to be available
+            }
+            data_for_timers->timer_array_lock->lock = 0;
+            data_for_timers->timers[index].time_added = -1;
+            data_for_timers->timer_array_lock->lock = 1;
+            printf("timer ran out: %d\n",  *(data_for_timers->timed_out_frame));
         }
     }
 }
@@ -205,6 +221,10 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
                 for(i = 1; i < PACKET_SIZE; i++)
                     packet[i] = buffer[next_frame_to_send % window_size][i-1];
                 printf("Packet to be sent: %d\n", next_frame_to_send);
+                
+                for(i = 0; i< window_size;i++)
+                    printf("%d %ld\n", timers_for_sent_frames[i].id, timers_for_sent_frames[i].time_added);
+
                 //Sending the packet using UDP sockets
                 int len = sizeof(client_addr);
                 sendto(*server_sockfd, (const char *)packet, strlen(packet),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len); 
@@ -237,6 +257,8 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
                     packet[i] = buffer[oldest_timedout_frame % window_size][i-1];
                 int len = sizeof(client_addr);
                 printf("Timedout packet to be sent: %d\n", oldest_timedout_frame);
+                for(i = 0; i< window_size;i++)
+                    printf("%d %ld\n", timers_for_sent_frames[i].id, timers_for_sent_frames[i].time_added);
                 sendto(*server_sockfd, (const char *)packet, strlen(packet),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len);
                 timer_to_set = oldest_timedout_frame;
                 while(!timed_out_frame_lock.lock){
@@ -258,7 +280,7 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
             network_layer_disabled = 1;
         }
 
-        if(ack_received == ack_expected - 1){
+        if(ack_received == ack_expected){
             int len = sizeof(client_addr);
 
             //Load output buffer by incrementing the start point
@@ -296,7 +318,9 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
         }
     }
 }
+//#endif
 
+//#ifdef CLIENT_SEL_REPEAT
 void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_addr, FILE* file_to_write){
     //Initialisations
     int window_size = (buffer_size % PACKET_SIZE) == 0 ? (buffer_size / PACKET_SIZE) : (buffer_size / PACKET_SIZE) + 1;
@@ -353,3 +377,4 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
         }
     }
 }
+//#endif
