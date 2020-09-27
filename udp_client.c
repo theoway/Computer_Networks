@@ -44,19 +44,17 @@ int main(){
     printf("File name sent\n");
     SelRepeatReceiver(2000, sock_fd, server_addr, fp);
 
-    /*n = recvfrom(sock_fd, (char *)buffer, MAXSIZE, 0, (struct sockaddr *) &server_addr, &len); 
-    buffer[n] = '\0'; 
-    printf("File content below:\n");
+    fclose(fp);
 
-    int i;
-    char ch;
-    for(i = 0; i < MAXSIZE; i++){
-        ch = buffer[i];
-        if(ch == EOF)
-            return 0;
-        printf("%c", ch);
-    } */
-  
+    fp = fopen("./received_file.txt", "r");
+    //Displaying file content
+    printf("File content: \n");
+    char c;
+    while((c = fgetc(fp)) != EOF){
+        printf("%c",c);
+    }
+    printf("\n");
+
     close(sock_fd); 
 
     return 0;

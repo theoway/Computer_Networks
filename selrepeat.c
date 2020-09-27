@@ -380,6 +380,17 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
         }
         else if(!strncmp(temp_buffer, ADVANCE_WINDOW, strlen(ADVANCE_WINDOW))){
             //Load buffer into the file
+            
+            //File loading here from buffer into the FILE* file_to_write
+           int i = 0;
+           for(; i < window_size; i++){
+               int j = 0;
+               while(buffer[i][j] != '\0')
+               {
+                   fputc(buffer[i][j], file_to_write);
+                   j++;
+               }
+           }
             //Advance the window
             lower_edge = (upper_edge + 1) % (max_seq_number + 1);
             upper_edge = (lower_edge + window_size - 1) % (max_seq_number + 1);
@@ -387,7 +398,7 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
         else if(!strncmp(temp_buffer, END_PROTOCOL, strlen(END_PROTOCOL))){
             //End protocol
             printf("File received!\n");
-            exit(1);
+            return;
         }
     }
 }
