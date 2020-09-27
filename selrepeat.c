@@ -1,6 +1,3 @@
-#define SERVER_SEL_REPEAT
-#define CLIENT_SEL_REPEAT
-
 #include "selrepeat.h"
 
 //Returns 0 if the frame is not valid, that is, it doesn't fit inside the transmission/receiving window. Else returns 1
@@ -8,7 +5,6 @@ int is_the_arrived_frame_valid(int lowerEdge, int ack_received, int upperEdge){
     return ((lowerEdge <= ack_received) && (ack_received <= upperEdge)) || ((upperEdge <= lowerEdge) && (lowerEdge <= ack_received) || ((ack_received <= upperEdge) && (upperEdge < lowerEdge)));
 }
 
-//#ifdef SERVER_SEL_REPEAT
 
 void* receive_incoming_ack_frames(void* arg){
     int ascii_0 = (int)'0';
@@ -101,7 +97,7 @@ void* TimerClock(void* args){
                 //Wait for lock to be available
             }
             data_for_timers->timer_array_lock->lock = 0;
-            data_for_timers->timers[index].time_added = -1;
+            data_for_timers->timers[index].time_added = clock();
             data_for_timers->timer_array_lock->lock = 1;
             printf("timer ran out: %d\n",  *(data_for_timers->timed_out_frame));
         }
@@ -130,6 +126,7 @@ int loadOutputBuffer(int* file_transfer_status, int window_size, int* start_load
         }
     }
     if(c == EOF){
+        printf("\nEOF encountered!\n");
         buffer[i][j] = '\0';
         ack_ex++;
         i++;
@@ -212,7 +209,7 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
         switch(event){
             case frame_ready:{
                 nbuffered++;
-    
+
                 //Constuct the packet
                 char packet[BUFFER_SIZE + DIGITS_FOR_SEQ_NO];
                 int ascii_0 = (int)'0';
@@ -222,13 +219,22 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
                     packet[i] = buffer[next_frame_to_send % window_size][i-1];
                 printf("Packet to be sent: %d\n", next_frame_to_send);
                 
-                for(i = 0; i< window_size;i++)
-                    printf("%d %ld\n", timers_for_sent_frames[i].id, timers_for_sent_frames[i].time_added);
-
                 //Sending the packet using UDP sockets
                 int len = sizeof(client_addr);
                 sendto(*server_sockfd, (const char *)packet, strlen(packet),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len); 
                 timer_to_set = next_frame_to_send;
+                int index = -1;
+                for(i = 0; i < window_size;i++)
+                    index = timers_for_sent_frames[i].id  == next_frame_to_send ? i : index;
+
+                while(timers_for_sent_frames[index].time_added == -1){
+                    //Wait for the timer to be set
+                }
+
+                printf("In frame ready %d %ld\n", timers_for_sent_frames[index].id, timers_for_sent_frames[index].time_added);
+                for(i = 0; i< window_size;i++)
+                    printf("Frame ReadyEvent: %d %ld\n", timers_for_sent_frames[i].id, timers_for_sent_frames[i].time_added);
+            
                 next_frame_to_send++;
                 break;
             }
@@ -256,11 +262,13 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
                 for(i = 1; i< BUFFER_SIZE + DIGITS_FOR_SEQ_NO; i++)
                     packet[i] = buffer[oldest_timedout_frame % window_size][i-1];
                 int len = sizeof(client_addr);
-                printf("Timedout packet to be sent: %d\n", oldest_timedout_frame);
+
                 for(i = 0; i< window_size;i++)
-                    printf("%d %ld\n", timers_for_sent_frames[i].id, timers_for_sent_frames[i].time_added);
+                    printf("TimeOut Event: %d %ld\n", timers_for_sent_frames[i].id, timers_for_sent_frames[i].time_added);
                 sendto(*server_sockfd, (const char *)packet, strlen(packet),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len);
-                timer_to_set = oldest_timedout_frame;
+
+                printf("Timedout packet to be sent: %d\n", oldest_timedout_frame);
+
                 while(!timed_out_frame_lock.lock){
                     //Waiting for the lock to be availbale
                 }
@@ -305,6 +313,8 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
             printf("Advancing window\n");
             sendto(*server_sockfd, (const char *)message, strlen(message),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len);
 
+            ack_received = 0;
+            nbuffered = 0;
             if(file_transfer_complete){
                 //Protocol stops
                 //Set control for the thread to be 1
@@ -318,9 +328,8 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
         }
     }
 }
-//#endif
 
-//#ifdef CLIENT_SEL_REPEAT
+
 void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_addr, FILE* file_to_write){
     //Initialisations
     int window_size = (buffer_size % PACKET_SIZE) == 0 ? (buffer_size / PACKET_SIZE) : (buffer_size / PACKET_SIZE) + 1;
@@ -347,7 +356,7 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
         int seq_number = (int)temp_buffer[0] - (int)'0';
         if(is_the_arrived_frame_valid(lower_edge, seq_number, upper_edge)){
             //Arrived frame is valid
-            int buffer_num = (seq_number) % (max_seq_number + 1);
+            int buffer_num = (seq_number) % (window_size);
             int i = 0;
             while(temp_buffer[i] != '\0'){
                 buffer[buffer_num][i] = temp_buffer[i];
@@ -363,12 +372,27 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
             packet[1] = '\0';
             printf("Ack sent: %d\n", buffer_num);
             sendto(sock_fd, packet, strlen(packet), 0, (const struct sockaddr *) &server_addr,  sizeof(server_addr));
+            i = 0;
+            while(i < PACKET_SIZE){
+                temp_buffer[i] = '\0';
+                i++;
+            }
         }
         else if(!strncmp(temp_buffer, ADVANCE_WINDOW, strlen(ADVANCE_WINDOW))){
+            //Load buffer into the file
+            int i = 0;
+            /*for(; i < window_size; i++){
+                int j = 1;
+                printf("%c\n", buffer[i][0]);
+                while(buffer[i][j] != '\0' && j < strlen(buffer[i])){
+                    printf("%c", buffer[i][j]);
+                    j++;
+                }
+                printf("\n");
+            }*/
             //Advance the window
             lower_edge = (upper_edge + 1) % (max_seq_number + 1);
             upper_edge = (lower_edge + window_size - 1) % (max_seq_number + 1);
-            //Load buffer into the file
         }
         else if(!strncmp(temp_buffer, END_PROTOCOL, strlen(END_PROTOCOL))){
             //End protocol
@@ -377,4 +401,3 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
         }
     }
 }
-//#endif

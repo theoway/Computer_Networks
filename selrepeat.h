@@ -21,7 +21,6 @@
 int is_the_arrived_frame_valid(int ack_expected, int ack_received, int frame_to_be_sent);
 
 //For server side
-#ifdef SERVER_SEL_REPEAT
 /*A mutex lock: 1 for available, 0 for unavailable*/
 struct Lock{
     int lock;
@@ -83,11 +82,10 @@ int loadOutputBuffer(int* file_transfer_status, int window_size, int* start_load
 void* receive_incoming_ack_frames(void* arg);
 
 /*The protocol for server starts here!*/
+//Note: buffer_size cannot be less than PACKET_SIZE
 void SelRepeatServer(int buffer_size, FILE* fp, const int* server_sockfd ,struct sockaddr_in client_addr);
-#endif
 
-#ifdef CLIENT_SEL_REPEAT
+
 /*The protocol for client starts here!*/
 void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_addr, FILE* file_to_write);
-#endif
 

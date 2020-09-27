@@ -10,7 +10,6 @@
 #define PORT 9877
 #define MAXSIZE 100
 
-#define CLIENT_SEL_REPEAT
 #include "selrepeat.h"
 
 int main(){
@@ -39,7 +38,7 @@ int main(){
     FILE* fp;
     sendto(sock_fd, message, strlen(message), 0, (const struct sockaddr *) &server_addr,  sizeof(server_addr)); 
     printf("File name sent\n");
-    SelRepeatReceiver(1000, sock_fd, server_addr, fp);
+    SelRepeatReceiver(2000, sock_fd, server_addr, fp);
 
     /*n = recvfrom(sock_fd, (char *)buffer, MAXSIZE, 0, (struct sockaddr *) &server_addr, &len); 
     buffer[n] = '\0'; 
