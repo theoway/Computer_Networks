@@ -35,7 +35,11 @@ int main(){
     int n, len; 
     scanf("%s", message);
 
-    FILE* fp;
+    FILE* fp = fopen("./received_file.txt","w");
+    if(!fp)
+    {
+        printf("Couldn't open the file\n");
+    }
     sendto(sock_fd, message, strlen(message), 0, (const struct sockaddr *) &server_addr,  sizeof(server_addr)); 
     printf("File name sent\n");
     SelRepeatReceiver(2000, sock_fd, server_addr, fp);

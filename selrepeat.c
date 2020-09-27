@@ -360,10 +360,8 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
             int i = 0;
             while(temp_buffer[i] != '\0'){
                 buffer[buffer_num][i] = temp_buffer[i];
-                printf("%c", buffer[buffer_num][i]);
                 i++;
             }
-            printf("\n");
             buffer[buffer_num][i] = '\0';
 
             //Send ack
@@ -373,6 +371,8 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
             printf("Ack sent: %d\n", buffer_num);
             sendto(sock_fd, packet, strlen(packet), 0, (const struct sockaddr *) &server_addr,  sizeof(server_addr));
             i = 0;
+
+            //Clearing buffer
             while(i < PACKET_SIZE){
                 temp_buffer[i] = '\0';
                 i++;
@@ -380,16 +380,6 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
         }
         else if(!strncmp(temp_buffer, ADVANCE_WINDOW, strlen(ADVANCE_WINDOW))){
             //Load buffer into the file
-            int i = 0;
-            /*for(; i < window_size; i++){
-                int j = 1;
-                printf("%c\n", buffer[i][0]);
-                while(buffer[i][j] != '\0' && j < strlen(buffer[i])){
-                    printf("%c", buffer[i][j]);
-                    j++;
-                }
-                printf("\n");
-            }*/
             //Advance the window
             lower_edge = (upper_edge + 1) % (max_seq_number + 1);
             upper_edge = (lower_edge + window_size - 1) % (max_seq_number + 1);
