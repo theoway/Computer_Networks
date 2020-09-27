@@ -1,3 +1,6 @@
+Designed by: Umang, Tanmay
+Implemented by: Umang
+
 To compile & use the library, follow the instructions:
   To compile, type in the following commands in bash:
     gcc -c -o selrepeat.o selrepeat.c
