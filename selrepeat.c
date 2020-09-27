@@ -380,16 +380,17 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
         }
         else if(!strncmp(temp_buffer, ADVANCE_WINDOW, strlen(ADVANCE_WINDOW))){
             //Load buffer into the file
-            int i = 0;
-            /*for(; i < window_size; i++){
-                int j = 1;
-                printf("%c\n", buffer[i][0]);
-                while(buffer[i][j] != '\0' && j < strlen(buffer[i])){
-                    printf("%c", buffer[i][j]);
-                    j++;
-                }
-                printf("\n");
-            }*/
+            
+            //File loading here from buffer into the FILE* file_to_write
+           int i = 0;
+           for(; i < window_size; i++){
+               int j = 0;
+               while(buffer[i][j] != '\0')
+               {
+                   fputc(buffer[i][j], file_to_write);
+                   j++;
+               }
+           }
             //Advance the window
             lower_edge = (upper_edge + 1) % (max_seq_number + 1);
             upper_edge = (lower_edge + window_size - 1) % (max_seq_number + 1);
