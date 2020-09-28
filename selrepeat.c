@@ -243,6 +243,24 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
                 printf("Ack arrived: %d\n", latest_ack_arrived);
                 timer_to_stop = latest_ack_arrived;
                 timer_to_set = timer_to_set != timer_to_stop ? timer_to_set : -1;
+
+                int index = -1;
+                for(i = 0; i < window_size;i++)
+                    index = timers_for_sent_frames[i].id  == timer_to_stop? i : index;
+
+                while(timers_for_sent_frames[index].time_added != -1){
+                    //Wait for the timer to be set
+                }
+
+                index = -1;
+                for(i = 0; i < window_size;i++)
+                    index = timers_for_sent_frames[i].id  == timer_to_set? i : index;
+
+                while(timers_for_sent_frames[index].time_added == -1){
+                    //Wait for the timer to be set
+                }
+                
+                //Only increment if new ack is received
                 ack_received++;
                 while(!ack_lock.lock){
                     //Waiting for the lock to be availbale
@@ -365,11 +383,13 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
             //Arrived frame is valid
             int buffer_num = (seq_number) % (window_size);
             int i = 0;
-            while(temp_buffer[i] != '\0'){
-                buffer[buffer_num][i] = temp_buffer[i];
-                i++;
+            if(buffer[buffer_num][0] == '\0'){
+                while(temp_buffer[i] != '\0'){
+                    buffer[buffer_num][i] = temp_buffer[i];
+                    i++;
+                }
+                buffer[buffer_num][i] = '\0';
             }
-            buffer[buffer_num][i] = '\0';
 
             //Send ack
             char packet[DIGITS_FOR_SEQ_NO + 1];
