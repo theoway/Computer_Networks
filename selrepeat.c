@@ -164,6 +164,13 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
     int read_buffer_from = 0;
     ack_expected = loadOutputBuffer(&file_transfer_complete, window_size, &read_buffer_from, buffer, fp);
     
+    //An array to keep track of arrived acknowledgements
+    int arrived_ack_arry[window_size][2];
+    for(i = 0; i < window_size; i++){
+        arrived_ack_arry[i][0] = (lower_edge + i) % (max_seq_number + 1);
+        arrived_ack_arry[i][1] = 0;
+    }
+
     Lock timer_array_lock = {1};
     Timer timers_for_sent_frames[window_size];
     /*Intialising timers*/
@@ -241,6 +248,7 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
             case ack_arrived:{
                 //Stop thte timer for the arrived ack, increment the ack_counter
                 printf("Ack arrived: %d\n", latest_ack_arrived);
+                int var_latest_ack_arrived = latest_ack_arrived;
                 timer_to_stop = latest_ack_arrived;
                 timer_to_set = timer_to_set != timer_to_stop ? timer_to_set : -1;
 
@@ -261,7 +269,13 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
                 }
                 
                 //Only increment if new ack is received
-                ack_received++;
+                for(i = 0; i < window_size; i++){
+                    if(arrived_ack_arry[i][0] == var_latest_ack_arrived && !arrived_ack_arry[i][1]){
+                        ack_received++;
+                        arrived_ack_arry[i][1] = 1;
+                        break;
+                    }
+                }
                 while(!ack_lock.lock){
                     //Waiting for the lock to be availbale
                 }
@@ -343,6 +357,12 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
                 timers_for_sent_frames[i].time_added = -1;
             }
             timer_array_lock.lock = 1;
+            
+            //Reinitialising ack_arrival_array for new window
+            for(i = 0; i < window_size; i++){
+            arrived_ack_arry[i][0] = (lower_edge + i) % (max_seq_number + 1);
+            arrived_ack_arry[i][1] = 0;
+            }
 
             char* message = ADVANCE_WINDOW;
             printf("Advancing window\n");
@@ -368,7 +388,7 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
     //Allocate each buffer the size of packet
     int i = 0;
     for(; i < window_size; i++){
-        buffer[i] = (char*)malloc(sizeof(char) * PACKET_SIZE);
+        buffer[i] = (char*)malloc(sizeof(char) * BUFFER_SIZE);
         buffer[i][0] = '\0';
     }
 
@@ -384,7 +404,7 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
             int buffer_num = (seq_number) % (window_size);
             int i = 0;
             if(buffer[buffer_num][0] == '\0'){
-                while(temp_buffer[i] != '\0'){
+                while(temp_buffer[i] != '\0' && i < BUFFER_SIZE){
                     buffer[buffer_num][i] = temp_buffer[i];
                     i++;
                 }
@@ -406,13 +426,12 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
             }
         }
         else if(!strncmp(temp_buffer, ADVANCE_WINDOW, strlen(ADVANCE_WINDOW))){
-            //Load buffer into the file
-            
+    
             //File loading here from buffer into the FILE* file_to_write
            int i = 0;
            for(; i < window_size; i++){
                int j = 0;
-               while(buffer[i][j] != '\0')
+               while(buffer[i][j] != '\0' && j < BUFFER_SIZE)
                {
                    fputc(buffer[i][j], file_to_write);
                    buffer[i][j] = '\0';

@@ -50,10 +50,9 @@ int main(){
     //Displaying file content
     printf("File content: \n");
     char c;
-    while((c = fgetc(fp)) != EOF){
+    while((c = fgetc(fp)) != EOF && c != '\0'){
         printf("%c",c);
     }
-    printf("\n");
     fclose(fp);
     close(sock_fd); 
 
