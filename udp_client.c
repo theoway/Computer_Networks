@@ -54,7 +54,7 @@ int main(){
         printf("%c",c);
     }
     printf("\n");
-
+    fclose(fp);
     close(sock_fd); 
 
     return 0;

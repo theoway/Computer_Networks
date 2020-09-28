@@ -288,6 +288,23 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
             network_layer_disabled = 1;
         }
 
+        if((ack_received == ack_expected) && file_transfer_complete){
+            int len = sizeof(client_addr);
+            //Protocol stops
+            //Set control for the thread to be 1
+            stop_receiver_thread = 1;
+            stop_timer_thread = 1;
+
+            char* message = ADVANCE_WINDOW;
+            printf("Advancing window\n");
+            sendto(*server_sockfd, (const char *)message, strlen(message),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len);
+
+            printf("File transfer complete\tProtocol Ends!\n");
+            char* packet = END_PROTOCOL;
+            sendto(*server_sockfd, (const char *)packet, strlen(packet),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len);
+            return;
+        }
+
         if(ack_received == ack_expected){
             int len = sizeof(client_addr);
 
@@ -315,16 +332,6 @@ void SelRepeatServer(int buffer_size, FILE* fp,const int* server_sockfd ,struct 
 
             ack_received = 0;
             nbuffered = 0;
-            if(file_transfer_complete){
-                //Protocol stops
-                //Set control for the thread to be 1
-                stop_receiver_thread = 1;
-                stop_timer_thread = 1;
-                printf("File transfer complete\tProtocol Ends!\n");
-                char* packet = END_PROTOCOL;
-                sendto(*server_sockfd, (const char *)packet, strlen(packet),  MSG_CONFIRM, (const struct sockaddr *) &client_addr, len);
-                exit(1);
-            }
         }
     }
 }
@@ -388,6 +395,7 @@ void SelRepeatReceiver(int buffer_size, int sock_fd, struct sockaddr_in server_a
                while(buffer[i][j] != '\0')
                {
                    fputc(buffer[i][j], file_to_write);
+                   buffer[i][j] = '\0';
                    j++;
                }
            }
