@@ -1,5 +1,4 @@
-Developed & Designed together by: Umang (111815046), Tanmay (111815043)
-Coded by: Umang (because we wanted to use LINUX(ubuntu) and only umang had that OS)
+Developed & Designed by: Umang (111815046)
 
 To compile & use the library, follow the instructions:
   To compile, type in the following commands in bash:
