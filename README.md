@@ -1,4 +1,4 @@
-Developed & Designed by: Umang (111815046)
+Developed & Designed by: Umang 
 
 To compile & use the library, follow the instructions:
   To compile, type in the following commands in bash:
